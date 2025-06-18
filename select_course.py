@@ -6,6 +6,21 @@ import logging
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# 预期的报告参数结构示例:
+# {
+#     "course_id": "课程ID",
+#     "ware_id": "课件ID",
+#     "playlog_userid": "播放日志用户ID",
+#     "playlog_videoid": "播放日志视频ID",
+#     "playlog_upid": "播放日志UPID",
+#     "video_duration_ms": 1234567, # 视频总时长 (毫秒)
+#     "ts_url": "TS切片基础URL",
+#     "ts_key": "TS请求KEY",
+#     "ts_t": "TS请求T参数",
+#     "client_uuid": "客户端心跳UUID",
+#     "client_cdn": "客户端心跳CDN"
+# }
+
 def get_primary_projects(cookies):
     """
     通过requests发送请求，解析HTML，获取所有一级项目列表。
@@ -158,4 +173,174 @@ def match_courses_by_score(professional_courses, public_courses, required_score)
     if not find_exact_match(0, 0.0, []):
         logging.warning("未能找到完全匹配需求分数的课程组合。")
 
-    return matched_courses 
+    return matched_courses
+
+def get_reporting_parameters(course_id, cookies):
+    # 功能: 获取指定课程ID用于上报进度的所有必需参数。
+    # 注意: 此函数的实现依赖于对目标网站网络请求的分析。
+    # 以下URL、参数提取逻辑均为占位符，需要根据实际分析结果进行替换。
+
+    logging.info(f"正在为课程 {course_id} 获取上报参数...")
+    reporting_params = {
+        "course_id": course_id,
+        "ware_id": None,
+        "playlog_userid": None,
+        "playlog_videoid": None,
+        "playlog_upid": None,
+        "video_duration_ms": None,
+        "ts_url": None,
+        "ts_key": None,
+        "ts_t": None,
+        "client_uuid": None,
+        "client_cdn": None
+    }
+
+    # === 占位符逻辑开始 ===
+    # 假设需要访问一个课程详情页来获取参数
+    # course_video_page_url = f"https://www.cmechina.net/cme/study2.jsp?course_id={course_id}&courseware_id=SOME_WARE_ID" # WARE_ID可能也需要先获取
+    # headers = { ... } # 根据需要设置请求头
+    # try:
+    #     response = requests.get(course_video_page_url, headers=headers, cookies=cookies)
+    #     response.raise_for_status()
+    #     soup = BeautifulSoup(response.text, 'html.parser')
+    #
+    #     # 示例: 从HTML中提取参数 (具体选择器和逻辑需要实际分析)
+    #     # reporting_params["ware_id"] = soup.select_one("#wareIdInput")["value"]
+    #     # reporting_params["playlog_userid"] = # ... 从JS变量或HTML元素中提取
+    #     # reporting_params["video_duration_ms"] = # ...
+    #     # ... 其他参数类似
+    #
+    #     # 如果参数来自某个API调用:
+    #     # params_api_url = "https://www.cmechina.net/api/getCourseVideoParams"
+    #     # api_response = requests.post(params_api_url, data={"course_id": course_id}, cookies=cookies)
+    #     # api_data = api_response.json()
+    #     # reporting_params.update(api_data) # 假设API返回了所需参数
+    #
+    #     logging.info(f"成功获取课程 {course_id} 的部分或全部上报参数。") # 根据实际情况调整日志
+    #
+    # except requests.exceptions.RequestException as e:
+    #     logging.error(f"请求课程 {course_id} 的视频页面或参数API失败: {e}")
+    # except Exception as e:
+    #     logging.error(f"解析课程 {course_id} 的上报参数失败: {e}")
+    # === 占位符逻辑结束 ===
+
+    # 临时硬编码/模拟数据 - BEGIN
+    # **重要提示**: 以下是用于演示目的的模拟数据。
+    # 在实际应用中，必须替换为从网站动态获取参数的真实逻辑。
+    if course_id: # 确保 course_id 存在才填充模拟数据
+        logging.warning(f"课程 {course_id} 的上报参数使用的是模拟数据，请替换为真实获取逻辑！")
+        reporting_params.update({
+            "ware_id": f"sim_ware_{course_id}",
+            "playlog_userid": "sim_user_123",
+            "playlog_videoid": f"sim_video_{course_id}",
+            "playlog_upid": f"sim_upid_{course_id}",
+            "video_duration_ms": 3600 * 1000, # 假设1小时
+            "ts_url": "https://example.com/sim_ts_url",
+            "ts_key": "sim_ts_key",
+            "ts_t": "sim_ts_t_token",
+            "client_uuid": "sim_client_uuid_abcdef",
+            "client_cdn": "sim_cdn_provider"
+        })
+    else:
+        logging.error("获取上报参数时 course_id 为空。")
+    # 临时硬编码/模拟数据 - END
+
+    # 检查是否所有参数都已获取 (可选的验证步骤)
+    # all_params_found = all(value is not None for key, value in reporting_params.items() if key != "course_id") # course_id 总是存在
+    # if not all_params_found:
+    #    logging.warning(f"未能获取课程 {course_id} 的全部上报参数: {reporting_params}")
+
+    return reporting_params
+
+# 新增: 主函数封装选课和参数获取逻辑
+def select_and_prepare_courses(cookies, required_score_professional, required_score_public):
+    logging.info("开始执行选课和参数准备流程...")
+
+    projects_data = get_primary_projects(cookies)
+    professional_projects = projects_data.get("professional", [])
+    public_projects = projects_data.get("public", [])
+
+    all_professional_courses = []
+    for project in professional_projects:
+        logging.info(f"正在获取专业项目 '{project['name']}' (ID: {project['id']}) 的课程...")
+        all_professional_courses.extend(get_course_details_by_project_id(project['id'], cookies))
+
+    all_public_courses = []
+    for project in public_projects:
+        logging.info(f"正在获取公共项目 '{project['name']}' (ID: {project['id']}) 的课程...")
+        all_public_courses.extend(get_course_details_by_project_id(project['id'], cookies))
+
+    logging.info(f"总共获取到 {len(all_professional_courses)}门专业课程 和 {len(all_public_courses)}门公共课程。")
+
+    # 匹配专业课程
+    # 注意: match_courses_by_score 的逻辑是寻找精确匹配，如果找不到会返回空列表。
+    # 实际应用中可能需要调整此逻辑，例如允许近似匹配或选择多个小课程组合。
+    selected_professional_courses = []
+    if required_score_professional > 0 and all_professional_courses:
+        logging.info(f"开始为专业课程匹配 {required_score_professional}学分...")
+        selected_professional_courses = match_courses_by_score(all_professional_courses, [], required_score_professional)
+        if selected_professional_courses:
+            logging.info(f"成功匹配到 {len(selected_professional_courses)} 门专业课程，总学分基本满足要求。")
+        else:
+            logging.warning(f"未能为专业课程精确匹配到 {required_score_professional} 学分。")
+
+    # 匹配公共课程
+    selected_public_courses = []
+    if required_score_public > 0 and all_public_courses:
+        logging.info(f"开始为公共课程匹配 {required_score_public}学分...")
+        selected_public_courses = match_courses_by_score([], all_public_courses, required_score_public) # 注意参数顺序
+        if selected_public_courses:
+            logging.info(f"成功匹配到 {len(selected_public_courses)} 门公共课程，总学分基本满足要求。")
+        else:
+            logging.warning(f"未能为公共课程精确匹配到 {required_score_public} 学分。")
+
+    final_selected_courses_with_params = []
+
+    courses_to_process = selected_professional_courses + selected_public_courses
+
+    if not courses_to_process:
+        logging.warning("没有匹配到任何课程，无法进行参数获取。")
+        return []
+
+    logging.info(f"总共匹配到 {len(courses_to_process)} 门课程，将开始获取上报参数。")
+
+    for course in courses_to_process:
+        logging.info(f"准备为课程 '{course['name']}' (ID: {course['id']}) 获取上报参数。")
+        # 假设 'cookies' 变量在当前作用域可用
+        report_params = get_reporting_parameters(course['id'], cookies)
+        if all(report_params.get(k) is not None for k in ["ware_id", "playlog_videoid"]): # 简单检查关键参数是否存在
+            final_selected_courses_with_params.append({
+                "course_details": course,
+                "reporting_parameters": report_params
+            })
+            logging.info(f"已为课程 '{course['name']}' 添加上报参数。")
+        else:
+            logging.warning(f"未能获取课程 '{course['name']}' (ID: {course['id']}) 的完整上报参数，跳过此课程。")
+
+    logging.info(f"完成参数准备，共计 {len(final_selected_courses_with_params)} 门课程已准备好上报。")
+    return final_selected_courses_with_params
+
+# 示例: 如何在 __main__ 中调用
+if __name__ == "__main__":
+    # 配置日志 (确保在文件顶部或此处配置一次)
+    # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+    # 模拟cookies - 实际应用中需要从登录模块获取
+    mock_cookies = {"SESSION": "mock_session_id_for_testing_12345"}
+    logging.info("模拟运行选课流程...")
+
+    # 从用户或配置文件获取所需学分
+    # 这里使用固定值作为示例
+    target_professional_score = 10.0
+    target_public_score = 5.0
+    logging.info(f"目标学分: 专业课 {target_professional_score}, 公共课 {target_public_score}")
+
+    prepared_courses = select_and_prepare_courses(mock_cookies, target_professional_score, target_public_score)
+
+    if prepared_courses:
+        logging.info("最终选定的课程及上报参数：")
+        for item in prepared_courses:
+            logging.info(f"  课程: {item['course_details']['name']}, 学分: {item['course_details']['score']}")
+            logging.info(f"  上报参数: {item['reporting_parameters']}")
+    else:
+        logging.info("未能选定并准备任何课程。")

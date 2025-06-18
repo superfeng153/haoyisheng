@@ -2,6 +2,7 @@ import requests
 import time
 import random
 import json
+import logging # 新增 logging 导入
 from typing import Dict
 
 class ProgressReporter:
@@ -86,9 +87,11 @@ class ProgressReporter:
         try:
             response = self.session.get(url, params=params, headers=headers, timeout=10)
             response.raise_for_status()
-            print(f"[{time.strftime('%H:%M:%S')}] Sent ccstate request successfully.")
+            logging.info(f"课程 {self.course_id} 的 ccstate 请求已成功发送。")
         except requests.RequestException as e:
-            print(f"Error sending ccstate request: {e}")
+            logging.error(f"课程 {self.course_id} 的 ccstate 请求发送失败: {e}", exc_info=True)
+        except Exception as e: # Catch any other unexpected errors
+            logging.error(f"处理课程 {self.course_id} 的 ccstate 请求时发生未知错误: {e}", exc_info=True)
 
     def _send_playlog(self, play_position: int):
         """发送 playlog 请求以上报播放进度."""
@@ -116,9 +119,11 @@ class ProgressReporter:
         try:
             response = self.session.get(url, params=params, headers=headers, timeout=10)
             response.raise_for_status()
-            print(f"[{time.strftime('%H:%M:%S')}] Sent playlog request, progress: {play_position / 1000}s.")
+            logging.info(f"课程 {self.course_id} 的 playlog 请求已成功发送，进度: {play_position / 1000}秒。")
         except requests.RequestException as e:
-            print(f"Error sending playlog request: {e}")
+            logging.error(f"课程 {self.course_id} 的 playlog 请求发送失败: {e}", exc_info=True)
+        except Exception as e: # Catch any other unexpected errors
+            logging.error(f"处理课程 {self.course_id} 的 playlog 请求时发生未知错误: {e}", exc_info=True)
 
     def _send_ts(self, video_param: int):
         """发送 .ts 视频切片请求 (不下载内容)."""
@@ -140,9 +145,11 @@ class ProgressReporter:
             # 使用 stream=True, 并且不读取 response.content, 以避免下载
             response = self.session.get(self.ts_url, params=params, headers=headers, stream=True, timeout=10)
             response.raise_for_status()
-            print(f"[{time.strftime('%H:%M:%S')}] Sent .ts request (video={video_param}) successfully.")
+            logging.info(f"课程 {self.course_id} 的 .ts 请求 (video={video_param}) 已成功发送。")
         except requests.RequestException as e:
-            print(f"Error sending .ts request: {e}")
+            logging.error(f"课程 {self.course_id} 的 .ts 请求发送失败: {e}", exc_info=True)
+        except Exception as e: # Catch any other unexpected errors
+            logging.error(f"处理课程 {self.course_id} 的 .ts 请求时发生未知错误: {e}", exc_info=True)
         finally:
             if 'response' in locals() and response:
                 response.close()
@@ -183,9 +190,11 @@ class ProgressReporter:
             # Body 是 urlencoded 的 JSON 字符串
             response = self.session.post(url, data=json.dumps(data), headers=headers, timeout=10)
             response.raise_for_status()
-            print(f"[{time.strftime('%H:%M:%S')}] Sent client heartbeat (num={num_param}) successfully.")
+            logging.info(f"课程 {self.course_id} 的 client heartbeat (num={num_param}) 请求已成功发送。")
         except requests.RequestException as e:
-            print(f"Error sending client heartbeat: {e}")
+            logging.error(f"课程 {self.course_id} 的 client heartbeat 请求发送失败: {e}", exc_info=True)
+        except Exception as e: # Catch any other unexpected errors
+            logging.error(f"处理课程 {self.course_id} 的 client heartbeat 请求时发生未知错误: {e}", exc_info=True)
 
     def report(self, start_play_position: int = 20397, start_ts_video_param: int = 57, progress_interval_s: int = 10):
         """
@@ -199,34 +208,45 @@ class ProgressReporter:
         current_play_position = start_play_position
         current_ts_video_param = start_ts_video_param
         loop_count = 0
-        client_heartbeat_num = 10 # 初始值从抓包文件获取
+        # client_heartbeat_num 的初始值为10，此值据称从实际网络请求抓包分析中观察得到。
+        # 在实际应用中，如果此参数的起始值或递增逻辑有变，应根据新的分析结果进行调整。
+        client_heartbeat_num = 10
 
-        print(f"Starting progress reporting for course {self.course_id}...")
-        print(f"Video duration: {self.video_duration_ms / 1000}s")
+        logging.info(f"开始为课程 {self.course_id} 上报学习进度。视频总时长: {self.video_duration_ms / 1000}秒。")
 
-        while current_play_position < self.video_duration_ms:
-            loop_count += 1
-            print(f"\n--- Loop {loop_count} ---")
+        if self.video_duration_ms <= 0:
+            logging.warning(f"课程 {self.course_id} 的视频时长 ({self.video_duration_ms}ms) 无效，无法上报进度。")
+            return
 
-            if loop_count > 0 and loop_count % 6 == 0:
-                self._send_client_heartbeat(client_heartbeat_num)
-                client_heartbeat_num += 1
+        try:
+            while current_play_position < self.video_duration_ms:
+                loop_count += 1
+                logging.info(f"--- 课程 {self.course_id} 上报循环 {loop_count} ---")
 
-            self._send_ccstate()
-            time.sleep(random.uniform(0.5, 1.5))
+                if loop_count > 0 and loop_count % 6 == 0: # 每6次主循环，发送一次 client_heartbeat
+                    self._send_client_heartbeat(client_heartbeat_num)
+                    client_heartbeat_num += 1
+
+                self._send_ccstate()
+                time.sleep(random.uniform(0.5, 1.5)) # 模拟请求间的微小延迟
+
+                self._send_playlog(current_play_position)
+                time.sleep(random.uniform(0.5, 1.5)) # 模拟请求间的微小延迟
+
+                self._send_ts(current_ts_video_param)
+
+                # 更新下一次循环的参数
+                # 播放位置增加量：基础间隔时间 + 一个小的随机波动值
+                increment = progress_interval_s * 1000 + random.randint(-200, 200)
+                current_play_position += increment
+                # .ts 切片的 video 参数，根据观察到的规律，每次递增5（此规律需根据实际情况确认）
+                current_ts_video_param += 5
+
+                if current_play_position < self.video_duration_ms:
+                    logging.debug(f"等待 {progress_interval_s} 秒后进行下一次上报...")
+                    time.sleep(progress_interval_s)
             
-            self._send_playlog(current_play_position)
-            time.sleep(random.uniform(0.5, 1.5))
+            logging.info(f"课程 {self.course_id} 的视频进度已全部上报完成。")
 
-            self._send_ts(current_ts_video_param)
-
-            # 更新下一次循环的参数
-            increment = progress_interval_s * 1000 + random.randint(-200, 200)
-            current_play_position += increment
-            current_ts_video_param += 5
-            
-            if current_play_position < self.video_duration_ms:
-                print(f"Waiting for {progress_interval_s} seconds before next report...")
-                time.sleep(progress_interval_s)
-
-        print("\nVideo finished. Reporting completed.")
+        except Exception as e:
+            logging.error(f"为课程 {self.course_id} 上报进度时发生意外错误: {e}", exc_info=True)
